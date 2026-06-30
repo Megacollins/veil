@@ -863,7 +863,7 @@ export default function App() {
 
   async function generateProof() {
     if (!recipient) { addLog("Enter recipient address."); return; }
-    setBusy(true); addLog("Starting browser ZK proof...");
+    setBusy(true); addLog("Generating ZK proof...");
     try {
       const noteData   = noteJson ? (JSON.parse(noteJson).note ?? JSON.parse(noteJson)) : note;
       const leafIndex  = (note as any)?.leafIndex  ?? noteData?.leafIndex  ?? 0;
@@ -872,19 +872,51 @@ export default function App() {
       const nullifierHex: string | undefined = noteData?.nullifier_hash;
       if (!nullifierHex) throw new Error("Note missing nullifier_hash — please generate a fresh note");
 
-      // Build Merkle path: frontier values for bit=1 levels, hardcoded zeros for bit=0
+      // Build frontier map (bit=1 levels only)
       const neededLevels: number[] = [];
       for (let i = 0; i < 20; i++) if ((leafIndex >> i) & 1) neededLevels.push(i);
 
       let frontierMap = new Map<number, bigint>();
       if (neededLevels.length > 0) {
-        addLog(`Reading Merkle frontier from contract (leaf #${leafIndex})...`);
+        addLog(`Reading Merkle frontier (leaf #${leafIndex})...`);
         frontierMap = await readFrontiersFromContract(contractId, neededLevels);
         if (frontierMap.size < neededLevels.length)
-          throw new Error(`Frontier incomplete: ${frontierMap.size}/${neededLevels.length} levels`);
-        addLog(`Frontier ready (${frontierMap.size} levels)`);
+          throw new Error(`Frontier incomplete: ${frontierMap.size}/${neededLevels.length}`);
       }
 
+      // Build frontiers object for server (only the levels where bit=1)
+      const frontiers: Record<number, string> = {};
+      for (const [lvl, val] of frontierMap) frontiers[lvl] = val.toString();
+
+      // ── Try server-side proving first (correct keccak transcript) ──────────
+      addLog("Requesting proof from prover server...");
+      try {
+        const res = await fetch(`${PROVER_SERVER}/prove`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note: noteData, recipient, leafIndex, frontiers }),
+          signal: AbortSignal.timeout(180_000),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.error) throw new Error(data.error);
+          setProof(data.proof); setPublicInputs(data.public_inputs);
+          addLog(`Server proof ready — ${(data.proof.length - 2) / 2} bytes`);
+          setStep("withdraw");
+          return;
+        }
+        addLog(`Server returned ${res.status}, falling back to browser prover...`);
+      } catch (serverErr: unknown) {
+        const msg = (serverErr as Error).message;
+        if (msg.includes("aborted") || msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+          addLog("Prover server unreachable — using browser WASM prover...");
+        } else {
+          throw serverErr; // real error from server, propagate
+        }
+      }
+
+      // ── Browser-side WASM fallback ─────────────────────────────────────────
+      addLog("Loading WASM prover...");
       const bits: number[] = [];
       const siblings: bigint[] = [];
       for (let i = 0; i < 20; i++) {
@@ -893,13 +925,11 @@ export default function App() {
         siblings.push(bit === 1 ? frontierMap.get(i)! : ZEROS[i]);
       }
 
-      // Read current Merkle root from contract storage
       addLog("Reading Merkle root from contract...");
       const root = await readRootFromContract(contractId);
       if (root === null) throw new Error("Could not read Merkle root from contract");
-      addLog(`Root: ${root.toString(16).slice(0, 16)}...`);
+      addLog(`Root: 0x${root.toString(16).slice(0, 16)}...`);
 
-      // Convert Stellar address to BN254 field element
       const recipientField = (() => {
         if (recipient.startsWith("G") && recipient.length === 56) {
           const raw = StrKey.decodeEd25519PublicKey(recipient);
@@ -910,12 +940,9 @@ export default function App() {
 
       const nullifierHash = BigInt("0x" + nullifierHex);
 
-      // Lazy-load WASM packages only when proving
-      addLog("Loading WASM prover...");
       const { Noir } = await import("@noir-lang/noir_js");
       const { UltraHonkBackend } = await import("@aztec/bb.js");
       const circuitJson = await fetch("/tornado_classic.json").then(r => r.json());
-
       const backend = new UltraHonkBackend(circuitJson.bytecode);
       const noir = new Noir(circuitJson);
 
@@ -933,34 +960,28 @@ export default function App() {
       addLog("Running UltraHonk prover (~30–60s)...");
       const { proof: proofBytes, publicInputs: bbPubInputs } = await backend.generateProof(witness) as any;
 
-      // Debug: log what bb.js actually returns
-      console.log("[bb.js] proofBytes.length:", proofBytes?.length);
-      console.log("[bb.js] proofBytes prefix (hex):", Buffer.from(proofBytes?.slice(0, 32) ?? []).toString("hex"));
-      console.log("[bb.js] publicInputs type:", typeof bbPubInputs, Array.isArray(bbPubInputs) ? `Array(${bbPubInputs.length})` : bbPubInputs?.constructor?.name, bbPubInputs?.length ?? bbPubInputs?.byteLength);
-      if (Array.isArray(bbPubInputs) && bbPubInputs.length > 0) {
-        console.log("[bb.js] publicInputs[0] type:", typeof bbPubInputs[0], bbPubInputs[0]?.length ?? bbPubInputs[0]?.byteLength);
-        console.log("[bb.js] publicInputs[0]:", typeof bbPubInputs[0] === "string" ? bbPubInputs[0].slice(0, 20) : Buffer.from(bbPubInputs[0]).toString("hex").slice(0, 20));
-      }
+      // Use bb.js public inputs directly (correct format for the prover)
+      const pubHex = (() => {
+        if (Array.isArray(bbPubInputs) && bbPubInputs.length >= 3) {
+          const buf = new Uint8Array(96);
+          for (let i = 0; i < 3; i++) {
+            const hexStr = (typeof bbPubInputs[i] === "string" ? bbPubInputs[i] : "0x" + Buffer.from(bbPubInputs[i]).toString("hex")).replace("0x","").padStart(64, "0");
+            buf.set(new Uint8Array(Buffer.from(hexStr, "hex")), i * 32);
+          }
+          return "0x" + Buffer.from(buf).toString("hex");
+        }
+        // fallback: manual construction
+        const fieldToBE32 = (n: bigint) => new Uint8Array(Buffer.from(n.toString(16).padStart(64,"0"),"hex"));
+        const buf = new Uint8Array(96);
+        buf.set(fieldToBE32(root), 0);
+        buf.set(fieldToBE32(nullifierHash), 32);
+        buf.set(fieldToBE32(recipientField), 64);
+        return "0x" + Buffer.from(buf).toString("hex");
+      })();
 
-      // Construct public inputs directly from our already-computed BigInt values.
-      // This is format-agnostic and guaranteed correct regardless of bb.js internals.
-      const fieldToBE32 = (n: bigint): Uint8Array => {
-        const hex = n.toString(16).padStart(64, "0");
-        return new Uint8Array(Buffer.from(hex, "hex"));
-      };
-      const pubBytes = new Uint8Array(96);
-      pubBytes.set(fieldToBE32(root), 0);
-      pubBytes.set(fieldToBE32(nullifierHash), 32);
-      pubBytes.set(fieldToBE32(recipientField), 64);
-      const pubHex = "0x" + Buffer.from(pubBytes).toString("hex");
-
-      // Try full proofBytes first (bb.js may or may not prepend public inputs).
-      // Log prefix to help diagnose format.
-      addLog(`raw proof: ${proofBytes.length} bytes, first32: ${Buffer.from(proofBytes.slice(0,4)).toString("hex")}`);
       const proofHex = "0x" + Buffer.from(proofBytes).toString("hex");
-
       setProof(proofHex); setPublicInputs(pubHex);
-      addLog(`Proof ready — ${proofBytes.length} bytes`);
+      addLog(`Browser proof ready — ${proofBytes.length} bytes`);
       setStep("withdraw");
     } catch (e: unknown) { addLog(`Proof error: ${(e as Error).message}`); } finally { setBusy(false); }
   }
@@ -974,8 +995,8 @@ export default function App() {
       const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE })
         .addOperation(contract.call("withdraw",
           new Address(recipient).toScVal(),
-          xdr.ScVal.scvBytes(Buffer.from(proof.replace("0x",""),"hex")),
-          xdr.ScVal.scvBytes(Buffer.from(publicInputs.replace("0x",""),"hex"))))
+          xdr.ScVal.scvBytes(Buffer.from(publicInputs.replace("0x",""),"hex")),
+          xdr.ScVal.scvBytes(Buffer.from(proof.replace("0x",""),"hex"))))
         .setTimeout(30).build();
       const simResult = await server.simulateTransaction(tx);
       if (rpc.Api.isSimulationError(simResult)) throw new Error(simResult.error);
