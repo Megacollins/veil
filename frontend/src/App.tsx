@@ -974,8 +974,8 @@ export default function App() {
       const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE })
         .addOperation(contract.call("withdraw",
           new Address(recipient).toScVal(),
-          xdr.ScVal.scvBytes(Buffer.from(publicInputs.replace("0x",""),"hex")),
-          xdr.ScVal.scvBytes(Buffer.from(proof.replace("0x",""),"hex"))))
+          xdr.ScVal.scvBytes(Buffer.from(proof.replace("0x",""),"hex")),
+          xdr.ScVal.scvBytes(Buffer.from(publicInputs.replace("0x",""),"hex"))))
         .setTimeout(30).build();
       const simResult = await server.simulateTransaction(tx);
       if (rpc.Api.isSimulationError(simResult)) throw new Error(simResult.error);
