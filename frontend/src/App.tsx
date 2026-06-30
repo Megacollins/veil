@@ -931,13 +931,33 @@ export default function App() {
       });
 
       addLog("Running UltraHonk prover (~30–60s)...");
-      const { proof: proofBytes } = await backend.generateProof(witness);
+      const { proof: proofBytes, publicInputs: bbPubInputs } = await backend.generateProof(witness) as any;
 
-      // @aztec/bb.js prepends public inputs (3 × 32 bytes) to the proof bytes.
-      // The contract expects them split: public_inputs separately, proof without them.
-      const N_PUB_BYTES = 3 * 32;
-      const pubHex   = "0x" + Buffer.from(proofBytes.slice(0, N_PUB_BYTES)).toString("hex");
-      const proofHex = "0x" + Buffer.from(proofBytes.slice(N_PUB_BYTES)).toString("hex");
+      // Debug: log what bb.js actually returns
+      console.log("[bb.js] proofBytes.length:", proofBytes?.length);
+      console.log("[bb.js] proofBytes prefix (hex):", Buffer.from(proofBytes?.slice(0, 32) ?? []).toString("hex"));
+      console.log("[bb.js] publicInputs type:", typeof bbPubInputs, Array.isArray(bbPubInputs) ? `Array(${bbPubInputs.length})` : bbPubInputs?.constructor?.name, bbPubInputs?.length ?? bbPubInputs?.byteLength);
+      if (Array.isArray(bbPubInputs) && bbPubInputs.length > 0) {
+        console.log("[bb.js] publicInputs[0] type:", typeof bbPubInputs[0], bbPubInputs[0]?.length ?? bbPubInputs[0]?.byteLength);
+        console.log("[bb.js] publicInputs[0]:", typeof bbPubInputs[0] === "string" ? bbPubInputs[0].slice(0, 20) : Buffer.from(bbPubInputs[0]).toString("hex").slice(0, 20));
+      }
+
+      // Construct public inputs directly from our already-computed BigInt values.
+      // This is format-agnostic and guaranteed correct regardless of bb.js internals.
+      const fieldToBE32 = (n: bigint): Uint8Array => {
+        const hex = n.toString(16).padStart(64, "0");
+        return new Uint8Array(Buffer.from(hex, "hex"));
+      };
+      const pubBytes = new Uint8Array(96);
+      pubBytes.set(fieldToBE32(root), 0);
+      pubBytes.set(fieldToBE32(nullifierHash), 32);
+      pubBytes.set(fieldToBE32(recipientField), 64);
+      const pubHex = "0x" + Buffer.from(pubBytes).toString("hex");
+
+      // Try full proofBytes first (bb.js may or may not prepend public inputs).
+      // Log prefix to help diagnose format.
+      addLog(`raw proof: ${proofBytes.length} bytes, first32: ${Buffer.from(proofBytes.slice(0,4)).toString("hex")}`);
+      const proofHex = "0x" + Buffer.from(proofBytes).toString("hex");
 
       setProof(proofHex); setPublicInputs(pubHex);
       addLog(`Proof ready — ${proofBytes.length} bytes`);
