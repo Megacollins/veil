@@ -1,7 +1,7 @@
 import { Buffer } from "buffer";
 import { useState, useEffect, useRef } from "react";
 import {
-  Networks, TransactionBuilder, BASE_FEE, Contract, xdr, Address, rpc
+  Networks, TransactionBuilder, BASE_FEE, Contract, xdr, Address, rpc, StrKey
 } from "@stellar/stellar-sdk";
 import { StellarWalletsKit } from "@creit.tech/stellar-wallets-kit";
 import { FreighterModule, FREIGHTER_ID } from "@creit.tech/stellar-wallets-kit/modules/freighter";
@@ -27,7 +27,33 @@ StellarWalletsKit.init({
   modules: [new FreighterModule()],
 });
 
-interface Note { nullifier: string; secret: string; commitment: string; leafIndex?: number; contractId?: string; }
+interface Note { nullifier: string; secret: string; commitment: string; nullifier_hash?: string; leafIndex?: number; contractId?: string; }
+
+const BN254_PRIME = BigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
+
+// Precomputed Poseidon2 zero siblings for BN254 (depth 20)
+const ZEROS: bigint[] = [
+  0n,
+  BigInt("5151499478991301833156025595048985053689893395646836724335623777508747990769"),
+  BigInt("6425444215191838285069835781607981895589384041954338275956759438530131468944"),
+  BigInt("15366428887851194658173001994030115403889500460316803633813719685335613213216"),
+  BigInt("16035753591704748209377180686147291356460509756602580601938195381349806255502"),
+  BigInt("8144004172175511637373287007127031310278744323254585308703615193240287509983"),
+  BigInt("796074195456137668475057404256202455048248910468542119987582633322559749494"),
+  BigInt("20567739078944838550556895816409602128127282297589578747131836752205066334747"),
+  BigInt("2915761020738377646169465098196184536995852317462848975418156916828302972897"),
+  BigInt("10985760690611977917867463287126968335324276333731556907069004868774077204850"),
+  BigInt("19208047717975195819992968481289292904158208618635067144381052124352153142918"),
+  BigInt("6873111190261103763395069460662520014470628472871405490586772273844549690535"),
+  BigInt("5894139036143562089612233756205231544611692010506775540918923829608719739507"),
+  BigInt("12794319561613039897672261721253788651586435024857268094532550402122135778769"),
+  BigInt("720777601321551456724742356376872832235514487302799006897322578639686749258"),
+  BigInt("19726607866286112953874979389205149577323021278529259017954198462517737418473"),
+  BigInt("9477901871732605408863140319391985875503693577321165842544029785283526188723"),
+  BigInt("3218243980816964110015535469652973420290887819006413761652914020854170460131"),
+  BigInt("21647471328696313483506044180817939310547082363167430262013183074005768690677"),
+  BigInt("14513543603428597604998785424833526732416414663942895493375066920249255152069"),
+];
 type Step = "connect" | "deposit" | "prove" | "withdraw" | "done";
 type View = "send" | "pool" | "ledger";
 
@@ -255,7 +281,7 @@ function StepProve({ note, noteJson, setNoteJson, recipient, setRecipient, busy,
         <button onClick={generateProof} disabled={busy || !recipient}
           className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-white font-bold text-[0.9rem] transition-all"
           style={{boxShadow:"0 8px 32px rgba(245,158,11,0.35)"}}>
-          <IC d={icons.zap} size={16}/>{busy ? "Computing proof... (~30s)" : "Generate ZK Proof"}
+          <IC d={icons.zap} size={16}/>{busy ? "Proving in browser (~60s)..." : "Generate ZK Proof"}
         </button>
       </div>
     </div>
@@ -713,6 +739,35 @@ export default function App() {
     return result;
   }
 
+  async function readRootFromContract(contractId: string): Promise<bigint | null> {
+    try {
+      const server = new rpc.Server(TESTNET_RPC);
+      const contractAddr = Address.fromString(contractId);
+      const instanceKey = xdr.LedgerKey.contractData(
+        new xdr.LedgerKeyContractData({
+          contract: contractAddr.toScAddress(),
+          key: xdr.ScVal.scvLedgerKeyContractInstance(),
+          durability: xdr.ContractDataDurability.persistent(),
+        })
+      );
+      const resp = await server.getLedgerEntries(instanceKey);
+      if (!resp.entries?.length) return null;
+      const storage: xdr.ScMapEntry[] = (resp.entries[0].val as any)
+        .contractData().val().instance().storage() ?? [];
+      for (const entry of storage) {
+        const k = entry.key();
+        if (k.switch().name === "scvSymbol") {
+          const sym: string = (k.sym() as unknown as Buffer | string).toString();
+          if (sym === "root") {
+            const bytes = entry.val().bytes();
+            return BigInt("0x" + Buffer.from(bytes).toString("hex"));
+          }
+        }
+      }
+    } catch (err) { addLog(`Root read error: ${(err as Error).message}`); }
+    return null;
+  }
+
   async function fetchDepositCommitments(contractId: string, leafIndex: number): Promise<string[]> {
     if (leafIndex === 0) return [];
 
@@ -808,31 +863,84 @@ export default function App() {
 
   async function generateProof() {
     if (!recipient) { addLog("Enter recipient address."); return; }
-    setBusy(true); addLog("Running Noir circuit + UltraHonk...");
+    setBusy(true); addLog("Starting browser ZK proof...");
     try {
       const noteData   = noteJson ? (JSON.parse(noteJson).note ?? JSON.parse(noteJson)) : note;
       const leafIndex  = (note as any)?.leafIndex  ?? noteData?.leafIndex  ?? 0;
       const contractId = (note as any)?.contractId ?? noteData?.contractId ?? pool.contractId;
-      // Determine which frontier levels are needed (bits=1 in leafIndex)
+
+      const nullifierHex: string | undefined = noteData?.nullifier_hash;
+      if (!nullifierHex) throw new Error("Note missing nullifier_hash — please generate a fresh note");
+
+      // Build Merkle path: frontier values for bit=1 levels, hardcoded zeros for bit=0
       const neededLevels: number[] = [];
       for (let i = 0; i < 20; i++) if ((leafIndex >> i) & 1) neededLevels.push(i);
 
-      // Read frontier values directly from contract storage
-      let frontiers: Record<number, string> = {};
+      let frontierMap = new Map<number, bigint>();
       if (neededLevels.length > 0) {
         addLog(`Reading Merkle frontier from contract (leaf #${leafIndex})...`);
-        const fm = await readFrontiersFromContract(contractId, neededLevels);
-        if (fm.size < neededLevels.length)
-          throw new Error(`Frontier incomplete: ${fm.size}/${neededLevels.length} levels`);
-        fm.forEach((v, k) => { frontiers[k] = v.toString(); });
-        addLog(`Frontier ready (${fm.size} levels)`);
+        frontierMap = await readFrontiersFromContract(contractId, neededLevels);
+        if (frontierMap.size < neededLevels.length)
+          throw new Error(`Frontier incomplete: ${frontierMap.size}/${neededLevels.length} levels`);
+        addLog(`Frontier ready (${frontierMap.size} levels)`);
       }
 
-      const res  = await fetch(`${PROVER_SERVER}/prove`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: noteData, recipient, leafIndex, frontiers }) });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setProof(data.proof); setPublicInputs(data.public_inputs);
-      addLog(`Proof ready — ${(data.proof.length - 2) / 2} bytes`);
+      const bits: number[] = [];
+      const siblings: bigint[] = [];
+      for (let i = 0; i < 20; i++) {
+        const bit = (leafIndex >> i) & 1;
+        bits.push(bit);
+        siblings.push(bit === 1 ? frontierMap.get(i)! : ZEROS[i]);
+      }
+
+      // Read current Merkle root from contract storage
+      addLog("Reading Merkle root from contract...");
+      const root = await readRootFromContract(contractId);
+      if (root === null) throw new Error("Could not read Merkle root from contract");
+      addLog(`Root: ${root.toString(16).slice(0, 16)}...`);
+
+      // Convert Stellar address to BN254 field element
+      const recipientField = (() => {
+        if (recipient.startsWith("G") && recipient.length === 56) {
+          const raw = StrKey.decodeEd25519PublicKey(recipient);
+          return BigInt("0x" + Buffer.from(raw).toString("hex")) % BN254_PRIME;
+        }
+        return BigInt(recipient) % BN254_PRIME;
+      })();
+
+      const nullifierHash = BigInt("0x" + nullifierHex);
+
+      // Lazy-load WASM packages only when proving
+      addLog("Loading WASM prover...");
+      const { Noir } = await import("@noir-lang/noir_js");
+      const { UltraHonkBackend } = await import("@aztec/bb.js");
+      const circuitJson = await fetch("/tornado_classic.json").then(r => r.json());
+
+      const backend = new UltraHonkBackend(circuitJson.bytecode);
+      const noir = new Noir(circuitJson);
+
+      addLog("Generating witness...");
+      const { witness } = await noir.execute({
+        root: root.toString(),
+        nullifier_hash: nullifierHash.toString(),
+        recipient: recipientField.toString(),
+        nullifier: noteData.nullifier.toString(),
+        secret: noteData.secret.toString(),
+        path_siblings: siblings.map(s => s.toString()),
+        path_bits: bits.map(b => b.toString()),
+      });
+
+      addLog("Running UltraHonk prover (~30–60s)...");
+      const { proof: proofBytes, publicInputs: pubInArr } = await backend.generateProof(witness);
+
+      const proofHex = "0x" + Buffer.from(proofBytes).toString("hex");
+      // publicInputs is Uint8Array[] — each element is one 32-byte field (root, nullifier_hash, recipient)
+      const pubHex = "0x" + pubInArr.map((b: Uint8Array | string) =>
+        (typeof b === "string" ? b.replace("0x", "") : Buffer.from(b).toString("hex")).padStart(64, "0")
+      ).join("");
+
+      setProof(proofHex); setPublicInputs(pubHex);
+      addLog(`Proof ready — ${proofBytes.length} bytes`);
       setStep("withdraw");
     } catch (e: unknown) { addLog(`Proof error: ${(e as Error).message}`); } finally { setBusy(false); }
   }
