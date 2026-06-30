@@ -931,13 +931,13 @@ export default function App() {
       });
 
       addLog("Running UltraHonk prover (~30–60s)...");
-      const { proof: proofBytes, publicInputs: pubInArr } = await backend.generateProof(witness);
+      const { proof: proofBytes } = await backend.generateProof(witness);
 
-      const proofHex = "0x" + Buffer.from(proofBytes).toString("hex");
-      // publicInputs is Uint8Array[] — each element is one 32-byte field (root, nullifier_hash, recipient)
-      const pubHex = "0x" + pubInArr.map((b: Uint8Array | string) =>
-        (typeof b === "string" ? b.replace("0x", "") : Buffer.from(b).toString("hex")).padStart(64, "0")
-      ).join("");
+      // @aztec/bb.js prepends public inputs (3 × 32 bytes) to the proof bytes.
+      // The contract expects them split: public_inputs separately, proof without them.
+      const N_PUB_BYTES = 3 * 32;
+      const pubHex   = "0x" + Buffer.from(proofBytes.slice(0, N_PUB_BYTES)).toString("hex");
+      const proofHex = "0x" + Buffer.from(proofBytes.slice(N_PUB_BYTES)).toString("hex");
 
       setProof(proofHex); setPublicInputs(pubHex);
       addLog(`Proof ready — ${proofBytes.length} bytes`);
