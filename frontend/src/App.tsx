@@ -10,7 +10,7 @@ import "./index.css";
 const TESTNET_RPC        = "https://soroban-testnet.stellar.org";
 const NETWORK_PASSPHRASE = Networks.TESTNET;
 const VERIFIER_CONTRACT_ID = import.meta.env.VITE_VERIFIER_CONTRACT_ID ?? "";
-const PROVER_SERVER      = "http://localhost:3001";
+const PROVER_SERVER      = import.meta.env.VITE_PROVER_SERVER ?? "http://localhost:3001";
 const EXPLORER_BASE      = "https://stellar.expert/explorer/testnet";
 
 const POOLS = [
