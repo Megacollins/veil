@@ -7,11 +7,9 @@
   --color-purple-500: #8b5cf6;
   --color-purple-400: #a78bfa;
   --color-purple-300: #c4b5fd;
+  --color-purple-200: #ddd6fe;
   --color-emerald-400: #34d399;
   --color-emerald-500: #10b981;
-  --color-amber-400:  #fbbf24;
-  --color-amber-500:  #f59e0b;
-  --color-sky-400:    #38bdf8;
   --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
   --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
 }
@@ -24,6 +22,7 @@
   --bg-card:     #0f0f1c;
   --bg-raised:   #141428;
   --bg-input:    #141428;
+  --bg-step-act: rgba(124,58,237,0.05);
   --bg-nav-act:  rgba(124,58,237,0.12);
 
   --border-main:   rgba(255,255,255,0.07);
@@ -47,6 +46,7 @@ html.light {
   --bg-card:     #ffffff;
   --bg-raised:   #eef0f7;
   --bg-input:    #eef0f7;
+  --bg-step-act: rgba(124,58,237,0.05);
   --bg-nav-act:  rgba(124,58,237,0.10);
 
   --border-main:   #d0d5e8;
@@ -83,12 +83,14 @@ body {
   transition: background 0.25s, color 0.25s;
 }
 
-/* ── Theme-aware utilities ── */
+/* ── Theme-aware utility classes ── */
 .t-bg-app     { background: var(--bg-app); }
 .t-bg-sidebar { background: var(--bg-sidebar); }
 .t-bg-topbar  { background: var(--bg-topbar); }
 .t-bg-card    { background: var(--bg-card); }
 .t-bg-raised  { background: var(--bg-raised); }
+.t-bg-input   { background: var(--bg-input); }
+.t-bg-step-act{ background: var(--bg-step-act); }
 .t-bg-nav-act { background: var(--bg-nav-act); }
 
 .t-border     { border-color: var(--border-main); }
@@ -101,6 +103,8 @@ body {
 .t-text-3 { color: var(--text-muted); }
 .t-text-4 { color: var(--text-faint); }
 .t-text-5 { color: var(--text-ultrafaint); }
+
+.t-divide > * { border-color: var(--divider); }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -127,6 +131,13 @@ body {
   background: var(--bg-topbar);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+}
+
+/* ── Step connector ── */
+.step-connector-line {
+  width: 1px; flex: 1; min-height: 16px;
+  background: linear-gradient(to bottom, rgba(124,58,237,0.25), rgba(124,58,237,0.04));
+  margin: 5px 0;
 }
 
 .font-code { font-family: 'SF Mono', 'Fira Code', monospace; }

@@ -248,6 +248,8 @@ fn main() {
     out.push_str(&base_content);
     out.push_str(&format!("nullifier_hash = \"{}\"\n", nf));
     out.push_str(&format!("root = \"{}\"\n", root));
+    // recipient: placeholder for local dev; real value supplied by the off-chain prover CLI
+    out.push_str("recipient = \"1\"\n");
     out.push_str(&format!("path_index = \"{}\"\n", path_index));
     fs::write(prover_path, out).expect("write Prover.toml");
     println!("Updated Prover.toml with public inputs and path_index");

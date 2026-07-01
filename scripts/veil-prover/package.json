@@ -1,0 +1,19 @@
+{
+  "name": "veil-prover",
+  "version": "1.0.0",
+  "description": "Veil off-chain prover: generate Noir/UltraHonk proofs for private Stellar transfers",
+  "scripts": {
+    "deposit": "ts-node veil-prover.ts deposit",
+    "prove":   "ts-node veil-prover.ts prove"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^12.3.0",
+    "argparse": "^2.0.1"
+  },
+  "devDependencies": {
+    "@types/argparse": "^2.0.10",
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.2"
+  }
+}

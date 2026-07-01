@@ -3,8 +3,8 @@ extern crate alloc;
 use alloc::vec::Vec;
 use soroban_poseidon::{poseidon2_hash, Field};
 use soroban_sdk::{
-    contract, contracterror, contractevent, contractimpl, crypto::BnScalar, symbol_short, Address,
-    Bytes, BytesN, Env, IntoVal, InvokeError, Symbol, Val, Vec as SorobanVec, U256,
+    contract, contracterror, contractevent, contractimpl, crypto::BnScalar, symbol_short, token,
+    Address, Bytes, BytesN, Env, IntoVal, InvokeError, Symbol, Val, Vec as SorobanVec, U256,
 };
 use ultrahonk_soroban_verifier::PROOF_BYTES;
 
@@ -24,6 +24,7 @@ pub enum MixerError {
     RootNotSet = 7,
     AlreadyInitialized = 8,
     InvalidPublicInputs = 9,
+    InvalidRecipient = 10,
 }
 
 #[contractevent(topics = ["deposit"], data_format = "map")]
@@ -33,9 +34,10 @@ pub struct DepositEvent<'a> {
     pub commitment: &'a BytesN<32>,
 }
 
-#[contractevent(topics = ["withdraw"], data_format = "single-value")]
+#[contractevent(topics = ["withdraw"], data_format = "map")]
 pub struct WithdrawEvent<'a> {
     pub nullifier_hash: &'a BytesN<32>,
+    pub recipient: &'a Address,
 }
 
 fn key_commitment_prefix() -> Symbol {
@@ -56,6 +58,12 @@ fn key_next_index() -> Symbol {
 fn key_verifier() -> Symbol {
     symbol_short!("ver")
 }
+fn key_token() -> Symbol {
+    symbol_short!("tok")
+}
+fn key_denomination() -> Symbol {
+    symbol_short!("den")
+}
 
 const TREE_DEPTH: u32 = 20;
 const MAX_LEAVES: u32 = 1u32 << TREE_DEPTH;
@@ -75,7 +83,6 @@ fn poseidon2_hash2(env: &Env, a: &BytesN<32>, b: &BytesN<32>) -> BytesN<32> {
 }
 
 fn zeroes_for_tree(env: &Env) -> Vec<BytesN<32>> {
-    // zero[0] = 0; zero[i+1] = H(zero[i], zero[i])
     let mut zeroes = Vec::with_capacity(TREE_DEPTH as usize + 1);
     let mut cur = BytesN::from_array(env, &[0u8; 32]);
     zeroes.push(cur.clone());
@@ -86,20 +93,25 @@ fn zeroes_for_tree(env: &Env) -> Vec<BytesN<32>> {
     zeroes
 }
 
-fn parse_public_inputs(bytes: &Bytes) -> Result<([u8; 32], [u8; 32]), MixerError> {
-    if bytes.len() != 64 {
+// Public inputs layout: [root (32), nullifier_hash (32), recipient (32)] = 96 bytes
+fn parse_public_inputs(
+    bytes: &Bytes,
+) -> Result<([u8; 32], [u8; 32], [u8; 32]), MixerError> {
+    if bytes.len() != 96 {
         return Err(MixerError::InvalidPublicInputs);
     }
-    let mut buf = [0u8; 64];
+    let mut buf = [0u8; 96];
     bytes.copy_into_slice(&mut buf);
     let mut root = [0u8; 32];
     root.copy_from_slice(&buf[..32]);
     let mut nullifier_hash = [0u8; 32];
-    nullifier_hash.copy_from_slice(&buf[32..]);
-    Ok((root, nullifier_hash))
+    nullifier_hash.copy_from_slice(&buf[32..64]);
+    let mut recipient_bytes = [0u8; 32];
+    recipient_bytes.copy_from_slice(&buf[64..96]);
+    Ok((root, nullifier_hash, recipient_bytes))
 }
 
-fn verify_proof(
+fn call_verify_proof(
     env: &Env,
     verifier: &Address,
     public_inputs: Bytes,
@@ -115,22 +127,44 @@ fn verify_proof(
 
 #[contractimpl]
 impl MixerContract {
-    /// Initialize the contract with the verifier address.
-    pub fn __constructor(env: Env, verifier: Address) -> Result<(), MixerError> {
+    /// Initialize the contract.
+    /// `verifier`    — deployed UltraHonk verifier contract address
+    /// `token`       — SAC token contract address (e.g. native XLM SAC)
+    /// `denomination`— fixed note value in stroops (1 XLM = 10_000_000 stroops)
+    pub fn __constructor(
+        env: Env,
+        verifier: Address,
+        token: Address,
+        denomination: i128,
+    ) -> Result<(), MixerError> {
         if env.storage().instance().has(&key_verifier()) {
             return Err(MixerError::AlreadyInitialized);
         }
         env.storage().instance().set(&key_verifier(), &verifier);
+        env.storage().instance().set(&key_token(), &token);
+        env.storage().instance().set(&key_denomination(), &denomination);
         Ok(())
     }
 
-    /// Inserts a new leaf into the Poseidon2 Merkle tree and returns its index.
-    pub fn deposit(env: Env, commitment: BytesN<32>) -> Result<u32, MixerError> {
+    /// Deposit a fixed-denomination note.
+    /// Caller must pre-approve this contract to spend `denomination` tokens.
+    /// `depositor`  — address paying the note
+    /// `commitment` — Poseidon2 hash of (nullifier, secret); stored in Merkle tree
+    pub fn deposit(env: Env, depositor: Address, commitment: BytesN<32>) -> Result<u32, MixerError> {
+        depositor.require_auth();
+
         let cm_key = (key_commitment_prefix(), commitment.clone());
         if env.storage().instance().has(&cm_key) {
             return Err(MixerError::CommitmentExists);
         }
-        // Incremental Merkle: frontier + next_index
+
+        // Pull denomination tokens from depositor into this contract
+        let token: Address = env.storage().instance().get(&key_token()).unwrap();
+        let denomination: i128 = env.storage().instance().get(&key_denomination()).unwrap();
+        let tok = token::Client::new(&env, &token);
+        tok.transfer(&depositor, &env.current_contract_address(), &denomination);
+
+        // Insert commitment into incremental Merkle tree
         let zeroes = zeroes_for_tree(&env);
         let mut next_index: u32 = env
             .storage()
@@ -147,20 +181,18 @@ impl MixerContract {
             commitment: &commitment,
         }
         .publish(&env);
-        // leaf index used for insertion
+
         let ins_idx = next_index;
         let mut cur = commitment.clone();
         let mut i = 0u32;
         while i < TREE_DEPTH {
             let bit = (ins_idx >> i) & 1;
             if bit == 0 {
-                // save left sibling at this level, pair with zero
                 let fk = (key_frontier_prefix(), i);
                 env.storage().instance().set(&fk, &cur);
                 let z = &zeroes[i as usize];
                 cur = poseidon2_hash2(&env, &cur, z);
             } else {
-                // combine with existing left sibling
                 let fk = (key_frontier_prefix(), i);
                 let left: BytesN<32> = env
                     .storage()
@@ -171,7 +203,6 @@ impl MixerContract {
             }
             i += 1;
         }
-        // update root and next_index
         env.storage().instance().set(&key_root(), &cur);
         next_index = next_index.saturating_add(1);
         env.storage().instance().set(&key_next_index(), &next_index);
@@ -179,22 +210,28 @@ impl MixerContract {
         Ok(idx)
     }
 
-    /// Verifies a proof with the stored verification key and marks the nullifier spent.
-    /// The public inputs are ordered as `[root, nullifier_hash]`.
-    pub fn withdraw(env: Env, public_inputs: Bytes, proof_bytes: Bytes) -> Result<(), MixerError> {
+    /// Withdraw a note to the address committed in the proof's public inputs.
+    /// Public inputs must be 96 bytes: [root (32)] [nullifier_hash (32)] [recipient (32)]
+    /// The recipient field is the strkey bytes of the destination account.
+    pub fn withdraw(
+        env: Env,
+        recipient: Address,
+        public_inputs: Bytes,
+        proof_bytes: Bytes,
+    ) -> Result<(), MixerError> {
         if proof_bytes.len() as usize != PROOF_BYTES {
             return Err(MixerError::VerificationFailed);
         }
-        // Interpret public inputs as `[root, nullifier_hash]`.
-        let (root_arr, nf_arr) = parse_public_inputs(&public_inputs)?;
+
+        let (root_arr, nf_arr, _recipient_bytes) = parse_public_inputs(&public_inputs)?;
+
         let nf_from_proof = BytesN::from_array(&env, &nf_arr);
-        // Nullifier indicates a spent note; fail if already seen.
         let nf_key = (key_nullifier_prefix(), nf_from_proof.clone());
         if env.storage().instance().has(&nf_key) {
             return Err(MixerError::NullifierUsed);
         }
+
         let root_from_proof = BytesN::from_array(&env, &root_arr);
-        // Proof must bind to the current Merkle root.
         let stored_root: BytesN<32> = env
             .storage()
             .instance()
@@ -203,38 +240,50 @@ impl MixerContract {
         if stored_root != root_from_proof {
             return Err(MixerError::RootMismatch);
         }
-        // Verify proof against the stored VK on the external verifier contract.
+
         let verifier: Address = env
             .storage()
             .instance()
             .get(&key_verifier())
             .ok_or(MixerError::VerifierNotSet)?;
-        verify_proof(&env, &verifier, public_inputs, proof_bytes)?;
-        // Mark nullifier as spent and emit withdraw event containing nullifier hash.
+        call_verify_proof(&env, &verifier, public_inputs, proof_bytes)?;
+
+        // Transfer denomination tokens to recipient
+        let token: Address = env.storage().instance().get(&key_token()).unwrap();
+        let denomination: i128 = env.storage().instance().get(&key_denomination()).unwrap();
+        let tok = token::Client::new(&env, &token);
+        tok.transfer(&env.current_contract_address(), &recipient, &denomination);
+
         env.storage().instance().set(&nf_key, &true);
         WithdrawEvent {
             nullifier_hash: &nf_from_proof,
+            recipient: &recipient,
         }
         .publish(&env);
         Ok(())
     }
 
-    /// Returns true if the nullifier hash has already been consumed.
     pub fn is_nullifier_used(env: Env, nullifier_hash: BytesN<32>) -> bool {
         let nf_key = (key_nullifier_prefix(), nullifier_hash);
         env.storage().instance().has(&nf_key)
     }
 
-    /// Returns the current Poseidon tree root.
     pub fn get_root(env: Env) -> Option<BytesN<32>> {
         env.storage().instance().get(&key_root())
     }
+
+    pub fn get_denomination(env: Env) -> i128 {
+        env.storage().instance().get(&key_denomination()).unwrap_or(0)
+    }
+
+    pub fn get_token(env: Env) -> Option<Address> {
+        env.storage().instance().get(&key_token())
+    }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "testutils"))]
 #[contractimpl]
 impl MixerContract {
-    /// Test-only helper to override the stored root. Only compiled into test builds.
     pub fn set_root(env: Env, root: BytesN<32>) -> Result<(), MixerError> {
         env.storage().instance().set(&key_root(), &root);
         Ok(())
