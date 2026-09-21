@@ -58,19 +58,11 @@ type Step = "connect" | "deposit" | "prove" | "withdraw" | "done";
 type View = "landing" | "send" | "pool" | "ledger" | "faq";
 
 const Logo = () => (
-  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-    <rect width="32" height="32" rx="9" fill="url(#vl)"/>
-    <path d="M16 6L23 9.5V15.5C23 19.9 19.5 23.2 16 24.5C12.5 23.2 9 19.9 9 15.5V9.5L16 6Z"
-      fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" strokeWidth="0.75"/>
-    <rect x="13" y="15" width="6" height="7" rx="1.5" fill="white" opacity="0.95"/>
-    <path d="M14 15V13.5C14 12.1 14.9 11 16 11C17.1 11 18 12.1 18 13.5V15"
-      stroke="white" strokeWidth="1.6" strokeLinecap="round" opacity="0.95"/>
-    <circle cx="16" cy="18.5" r="1" fill="#09090f"/>
-    <defs>
-      <linearGradient id="vl" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#7c3aed"/><stop offset="1" stopColor="#3730a3"/>
-      </linearGradient>
-    </defs>
+  <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+    <path d="M14 2L24 6.5V14C24 19.8 19.2 24.2 14 26C8.8 24.2 4 19.8 4 14V6.5L14 2Z"
+      fill="#0a0c18" stroke="#0a0c18" strokeWidth="0.5"/>
+    <path d="M10 13L13.5 18L18 10"
+      stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
