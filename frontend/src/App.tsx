@@ -316,10 +316,10 @@ function LandingPage({ onLaunch }: { onLaunch: () => void }) {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1px] h-24 pointer-events-none" style={{background:"linear-gradient(180deg,rgba(255,255,255,0.12),transparent)"}}/>
         <div className="relative z-10 flex flex-col items-center max-w-[1100px] w-full mx-auto">
           {/* Badge */}
-          <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border mb-8"
-            style={{borderColor:"rgba(255,255,255,0.1)", background:"rgba(255,255,255,0.03)"}}>
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{background:"#a78bfa"}}/>
-            <span className="text-[0.62rem] font-medium uppercase tracking-[0.16em]" style={{color:"rgba(255,255,255,0.4)"}}>Stellar Protocol 26 · Zero-Knowledge · Testnet</span>
+          <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border mb-8 t-border"
+            style={{background:"var(--bg-raised)"}}>
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{background:"var(--p500)"}}/>
+            <span className="text-[0.62rem] font-medium uppercase tracking-[0.16em] t-text-3">Stellar Protocol 26 · Zero-Knowledge · Testnet</span>
           </div>
           <h1 className="text-[2.8rem] sm:text-[4rem] md:text-[5.4rem] font-black tracking-[-2px] sm:tracking-[-3px] md:tracking-[-4px] leading-[1] mb-6 max-w-[860px] t-text-1">
             Private transfers,<br/>verified on-chain.
@@ -333,10 +333,9 @@ function LandingPage({ onLaunch }: { onLaunch: () => void }) {
               { label:"BN254 Native", sub:"Protocol 26" },
               { label:"Poseidon2", sub:"ZK hash" },
             ].map(({ label, sub }) => (
-              <div key={label} className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg border"
-                style={{borderColor:"rgba(255,255,255,0.08)", background:"rgba(255,255,255,0.03)"}}>
-                <span className="text-[0.75rem] font-medium" style={{color:"rgba(255,255,255,0.6)"}}>{label}</span>
-                <span className="text-[0.68rem]" style={{color:"rgba(255,255,255,0.25)"}}>{sub}</span>
+              <div key={label} className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg border t-border t-bg-raised">
+                <span className="text-[0.75rem] font-medium t-text-2">{label}</span>
+                <span className="text-[0.68rem] t-text-4">{sub}</span>
               </div>
             ))}
           </div>
