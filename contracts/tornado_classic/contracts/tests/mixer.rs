@@ -3,11 +3,20 @@
 use soroban_env_host::DiagnosticLevel;
 use soroban_poseidon::{poseidon2_hash, Field};
 use soroban_sdk::{
-    crypto::BnScalar, testutils::Address as TestAddress, Address, Bytes, BytesN, Env,
-    Vec as SorobanVec, U256,
+    contract, contractimpl, crypto::BnScalar, testutils::Address as TestAddress, Address, Bytes,
+    BytesN, Env, Vec as SorobanVec, U256,
 };
 
 use std::sync::{Mutex, OnceLock};
+
+// Minimal no-op token contract used in tests so deposit/withdraw token transfers succeed
+// without needing a real SAC deployment.
+#[contract]
+pub struct MockToken;
+#[contractimpl]
+impl MockToken {
+    pub fn transfer(_env: Env, _from: Address, _to: Address, _amount: i128) {}
+}
 
 #[cfg(feature = "wasm-cost")]
 use std::{
@@ -99,7 +108,9 @@ fn register_verifier(env: &Env, vk_bytes: &Bytes) -> Address {
     env.register(UltraHonkVerifierContract, (vk_bytes.clone(),))
 }
 fn register_mixer(env: &Env, verifier: Address) -> Address {
-    env.register(MixerContract, (verifier,))
+    let token_id = env.register(MockToken, ());
+    let denomination: i128 = 10_000_000; // 1 XLM in stroops
+    env.register(MixerContract, (verifier, token_id, denomination))
 }
 
 #[cfg(feature = "wasm-cost")]
@@ -173,7 +184,9 @@ fn register_wasm_mixer(env: &Env, verifier: Address) -> Address {
         "tornado_classic_contracts",
         &["--features", "wasm-cost"],
     );
-    env.register(wasm.as_slice(), (verifier,))
+    let token_id = env.register(MockToken, ());
+    let denomination: i128 = 10_000_000;
+    env.register(wasm.as_slice(), (verifier, token_id, denomination))
 }
 
 #[cfg(feature = "wasm-cost")]
@@ -195,6 +208,8 @@ fn merkle_frontier_updates_root_matches_reference() {
     let _ = env.host().set_diagnostic_level(DiagnosticLevel::None);
     let verifier_id = <Address as TestAddress>::generate(&env);
     let mixer_id: Address = register_mixer(&env, verifier_id);
+    let depositor = <Address as TestAddress>::generate(&env);
+    env.mock_all_auths();
 
     let mut leaves: Vec<[u8; 32]> = Vec::new();
     for i in 0u64..8 {
@@ -205,7 +220,7 @@ fn merkle_frontier_updates_root_matches_reference() {
 
     for (n, leaf) in leaves.iter().enumerate() {
         env.as_contract(&mixer_id, || {
-            MixerContract::deposit(env.clone(), BytesN::from_array(&env, leaf))
+            MixerContract::deposit(env.clone(), depositor.clone(), BytesN::from_array(&env, leaf))
         })
         .unwrap();
         let onchain_root = env
@@ -234,16 +249,19 @@ fn mixer_withdraw_and_double_spend_rejected() {
     // Register contracts
     let verifier_id: Address = register_verifier(&env, &vk_bytes);
     let mixer_id: Address = register_mixer(&env, verifier_id.clone());
+    let depositor = <Address as TestAddress>::generate(&env);
+    let recipient = <Address as TestAddress>::generate(&env);
+    env.mock_all_auths();
 
     // Deposit a commitment so root is non-zero
     let commitment = BytesN::from_array(&env, &[0x11; 32]);
     env.as_contract(&mixer_id, || {
-        MixerContract::deposit(env.clone(), commitment)
+        MixerContract::deposit(env.clone(), depositor.clone(), commitment)
     })
     .unwrap();
 
     // Set on-chain root to circuit public root
-    assert!(pub_inputs_bin.len() >= 64);
+    assert!(pub_inputs_bin.len() >= 96);
     let mut root_arr = [0u8; 32];
     root_arr.copy_from_slice(&pub_inputs_bin[..32]);
     env.as_contract(&mixer_id, || {
@@ -256,14 +274,14 @@ fn mixer_withdraw_and_double_spend_rejected() {
     let public_inputs: Bytes = Bytes::from_slice(&env, pub_inputs_bin);
 
     env.as_contract(&mixer_id, || {
-        MixerContract::withdraw(env.clone(), public_inputs.clone(), proof_bytes.clone())
+        MixerContract::withdraw(env.clone(), recipient.clone(), public_inputs.clone(), proof_bytes.clone())
     })
     .expect("withdraw ok");
 
     // Double-spend attempt with same nullifier must fail
     let err = env
         .as_contract(&mixer_id, || {
-            MixerContract::withdraw(env.clone(), public_inputs.clone(), proof_bytes.clone())
+            MixerContract::withdraw(env.clone(), recipient.clone(), public_inputs.clone(), proof_bytes.clone())
         })
         .expect_err("expected error");
     assert_eq!(err as u32, MixerError::NullifierUsed as u32);
@@ -276,7 +294,7 @@ fn set_root_overrides_root() {
     let env = Env::default();
     let _ = env.host().set_diagnostic_level(DiagnosticLevel::None);
     let verifier_id = <Address as TestAddress>::generate(&env);
-    let mixer_id: Address = register_mixer(&env, verifier_id);
+    let mixer_id: Address = register_mixer(&env, verifier_id.clone());
 
     let root = BytesN::from_array(&env, &[0xAB; 32]);
     env.as_contract(&mixer_id, || {
@@ -303,14 +321,17 @@ fn withdraw_rejects_invalid_public_inputs() {
     let vk_bytes: Bytes = Bytes::from_slice(&env, vk_bin);
     let verifier_id: Address = register_verifier(&env, &vk_bytes);
     let mixer_id: Address = register_mixer(&env, verifier_id.clone());
+    let depositor = <Address as TestAddress>::generate(&env);
+    let recipient = <Address as TestAddress>::generate(&env);
+    env.mock_all_auths();
 
     let commitment = BytesN::from_array(&env, &[0x22; 32]);
     env.as_contract(&mixer_id, || {
-        MixerContract::deposit(env.clone(), commitment)
+        MixerContract::deposit(env.clone(), depositor.clone(), commitment)
     })
     .unwrap();
 
-    assert!(pub_inputs_bin.len() >= 64);
+    assert!(pub_inputs_bin.len() >= 96);
     let mut root_arr = [0u8; 32];
     root_arr.copy_from_slice(&pub_inputs_bin[..32]);
     env.as_contract(&mixer_id, || {
@@ -325,7 +346,7 @@ fn withdraw_rejects_invalid_public_inputs() {
     let public_inputs: Bytes = Bytes::from_slice(&env, &corrupted_inputs);
     let err = env
         .as_contract(&mixer_id, || {
-            MixerContract::withdraw(env.clone(), public_inputs.clone(), proof_bytes.clone())
+            MixerContract::withdraw(env.clone(), recipient.clone(), public_inputs.clone(), proof_bytes.clone())
         })
         .expect_err("expected verification failure");
     assert_eq!(err as u32, MixerError::VerificationFailed as u32);
@@ -354,10 +375,13 @@ fn withdraw_rejects_short_public_inputs() {
     let vk_bytes: Bytes = Bytes::from_slice(&env, vk_bin);
     let verifier_id: Address = register_verifier(&env, &vk_bytes);
     let mixer_id: Address = register_mixer(&env, verifier_id.clone());
+    let depositor = <Address as TestAddress>::generate(&env);
+    let recipient = <Address as TestAddress>::generate(&env);
+    env.mock_all_auths();
 
     let commitment = BytesN::from_array(&env, &[0x22; 32]);
     env.as_contract(&mixer_id, || {
-        MixerContract::deposit(env.clone(), commitment)
+        MixerContract::deposit(env.clone(), depositor.clone(), commitment)
     })
     .unwrap();
 
@@ -367,7 +391,7 @@ fn withdraw_rejects_short_public_inputs() {
 
     let err = env
         .as_contract(&mixer_id, || {
-            MixerContract::withdraw(env.clone(), short_inputs.clone(), proof_bytes.clone())
+            MixerContract::withdraw(env.clone(), recipient.clone(), short_inputs.clone(), proof_bytes.clone())
         })
         .expect_err("expected InvalidPublicInputs");
     assert_eq!(err as u32, MixerError::InvalidPublicInputs as u32);
@@ -388,20 +412,23 @@ fn withdraw_rejects_long_public_inputs() {
     let vk_bytes: Bytes = Bytes::from_slice(&env, vk_bin);
     let verifier_id: Address = register_verifier(&env, &vk_bytes);
     let mixer_id: Address = register_mixer(&env, verifier_id.clone());
+    let depositor = <Address as TestAddress>::generate(&env);
+    let recipient = <Address as TestAddress>::generate(&env);
+    env.mock_all_auths();
 
     let commitment = BytesN::from_array(&env, &[0x22; 32]);
     env.as_contract(&mixer_id, || {
-        MixerContract::deposit(env.clone(), commitment)
+        MixerContract::deposit(env.clone(), depositor.clone(), commitment)
     })
     .unwrap();
 
     assert_eq!(proof_bin.len(), PROOF_BYTES);
     let proof_bytes: Bytes = Bytes::from_slice(&env, proof_bin);
-    let long_inputs = Bytes::from_slice(&env, &[0u8; 65]);
+    let long_inputs = Bytes::from_slice(&env, &[0u8; 97]); // >96 bytes = invalid
 
     let err = env
         .as_contract(&mixer_id, || {
-            MixerContract::withdraw(env.clone(), long_inputs.clone(), proof_bytes.clone())
+            MixerContract::withdraw(env.clone(), recipient.clone(), long_inputs.clone(), proof_bytes.clone())
         })
         .expect_err("expected InvalidPublicInputs");
     assert_eq!(err as u32, MixerError::InvalidPublicInputs as u32);
@@ -422,11 +449,14 @@ fn withdraw_rejects_root_mismatch() {
     let vk_bytes: Bytes = vk_bytes(&env);
     let verifier_id: Address = register_verifier(&env, &vk_bytes);
     let mixer_id: Address = register_mixer(&env, verifier_id.clone());
+    let depositor = <Address as TestAddress>::generate(&env);
+    let recipient = <Address as TestAddress>::generate(&env);
+    env.mock_all_auths();
 
     // Deposit one leaf to seed tree
     let commitment = BytesN::from_array(&env, &[0x33; 32]);
     env.as_contract(&mixer_id, || {
-        MixerContract::deposit(env.clone(), commitment)
+        MixerContract::deposit(env.clone(), depositor.clone(), commitment)
     })
     .unwrap();
 
@@ -442,7 +472,7 @@ fn withdraw_rejects_root_mismatch() {
 
     let err = env
         .as_contract(&mixer_id, || {
-            MixerContract::withdraw(env.clone(), public_inputs.clone(), proof_bytes.clone())
+            MixerContract::withdraw(env.clone(), recipient.clone(), public_inputs.clone(), proof_bytes.clone())
         })
         .expect_err("expected root mismatch");
     assert_eq!(err as u32, MixerError::RootMismatch as u32);
@@ -513,16 +543,18 @@ fn deposit_rejects_duplicate_commitment() {
     let _ = env.host().set_diagnostic_level(DiagnosticLevel::None);
     let verifier_id = <Address as TestAddress>::generate(&env);
     let mixer_id: Address = register_mixer(&env, verifier_id);
+    let depositor = <Address as TestAddress>::generate(&env);
+    env.mock_all_auths();
 
     let cm = BytesN::from_array(&env, &[0x55; 32]);
     env.as_contract(&mixer_id, || {
-        MixerContract::deposit(env.clone(), cm.clone())
+        MixerContract::deposit(env.clone(), depositor.clone(), cm.clone())
     })
     .expect("first deposit ok");
 
     let err = env
         .as_contract(&mixer_id, || {
-            MixerContract::deposit(env.clone(), cm.clone())
+            MixerContract::deposit(env.clone(), depositor.clone(), cm.clone())
         })
         .expect_err("expected duplicate commitment error");
     assert_eq!(err as u32, MixerError::CommitmentExists as u32);
@@ -546,6 +578,9 @@ fn deposit_then_withdraw_against_real_root_succeeds() {
     let vk_bytes: Bytes = Bytes::from_slice(&env, vk_bin);
     let verifier_id: Address = register_verifier(&env, &vk_bytes);
     let mixer_id: Address = register_mixer(&env, verifier_id.clone());
+    let depositor = <Address as TestAddress>::generate(&env);
+    let recipient = <Address as TestAddress>::generate(&env);
+    env.mock_all_auths();
 
     let mut commitment_arr = [0u8; 32];
     commitment_arr.copy_from_slice(commitment_bin);
@@ -555,7 +590,7 @@ fn deposit_then_withdraw_against_real_root_succeeds() {
     // and since the tree is empty, the resulting root will match the one
     // generated by the e2e step in build_all.sh.
     env.as_contract(&mixer_id, || {
-        MixerContract::deposit(env.clone(), commitment)
+        MixerContract::deposit(env.clone(), depositor.clone(), commitment)
     })
     .expect("deposit ok");
 
@@ -565,7 +600,7 @@ fn deposit_then_withdraw_against_real_root_succeeds() {
 
     // Withdraw without set_root! The root computed during deposit is used.
     env.as_contract(&mixer_id, || {
-        MixerContract::withdraw(env.clone(), public_inputs.clone(), proof_bytes.clone())
+        MixerContract::withdraw(env.clone(), recipient.clone(), public_inputs.clone(), proof_bytes.clone())
     })
     .expect("withdraw ok");
 
