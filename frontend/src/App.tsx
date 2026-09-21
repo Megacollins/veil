@@ -341,8 +341,7 @@ function LandingPage({ onLaunch }: { onLaunch: () => void }) {
       </section>
 
       {/* ── STATS BAR ── */}
-      <section className="relative border-y overflow-hidden" style={{borderColor:"rgba(124,58,237,0.12)"}}>
-        <div className="absolute inset-0" style={{background:"linear-gradient(135deg,rgba(124,58,237,0.07) 0%,rgba(67,56,202,0.04) 100%)"}}/>
+      <section className="relative border-y overflow-hidden t-border">
         <div className="relative max-w-[1100px] mx-auto px-4 sm:px-8 grid grid-cols-2 md:grid-cols-4">
           {[
             { value:"14,592", label:"Proof bytes",         note:"bytes" },
@@ -350,13 +349,11 @@ function LandingPage({ onLaunch }: { onLaunch: () => void }) {
             { value:"BN254",  label:"Elliptic curve",      note:"native" },
             { value:"2²⁰",    label:"Merkle tree depth",  note:"leaves" },
           ].map(({ value, label }, i) => (
-            <div key={label} className={`flex flex-col items-center px-4 sm:px-8 py-6 sm:py-7 relative ${i > 0 ? "border-t md:border-t-0 md:border-l" : ""}`}
-              style={{borderColor:"rgba(124,58,237,0.1)"}}>
-              <span className="text-[2rem] sm:text-[2.2rem] font-black tracking-tight leading-none mb-1.5"
-                style={{background:"linear-gradient(135deg,#c4b5fd,#a78bfa)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>
+            <div key={label} className={`flex flex-col items-center px-4 sm:px-8 py-6 sm:py-7 relative ${i > 0 ? "border-t md:border-t-0 md:border-l t-border" : ""}`}>
+              <span className="text-[2rem] sm:text-[2.2rem] font-black tracking-tight leading-none mb-1.5 t-text-1">
                 {value}
               </span>
-              <span className="text-[0.62rem] font-semibold uppercase tracking-[0.1em]" style={{color:"var(--text-faint)"}}>{label}</span>
+              <span className="text-[0.62rem] font-semibold uppercase tracking-[0.1em] t-text-3">{label}</span>
             </div>
           ))}
         </div>
@@ -367,7 +364,7 @@ function LandingPage({ onLaunch }: { onLaunch: () => void }) {
         <div className="max-w-[1100px] mx-auto">
           <div className="text-center mb-8 sm:mb-14">
             <div className="section-label justify-center mb-4">How it works</div>
-            <h2 className="text-[2rem] sm:text-[2.8rem] font-black tracking-[-1.6px] gradient-text">Three steps. No trace.</h2>
+            <h2 className="text-[2rem] sm:text-[2.8rem] font-black tracking-[-1.6px] t-text-1">Three steps. No trace.</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
