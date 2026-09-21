@@ -154,10 +154,8 @@ function TopNav({ address, light, setLight, connectWallet, disconnectWallet, bus
         </>}
         {view === "landing" && (
           <button onClick={onLaunch}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-[0.8rem] transition-all"
-            style={{background:"#ffffff", color:"#000000"}}
-            onMouseEnter={e=>(e.currentTarget.style.background="#e5e5e5")}
-            onMouseLeave={e=>(e.currentTarget.style.background="#ffffff")}>
+            className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-[0.8rem] transition-all border t-border"
+            style={{background:"var(--bg-raised)", color:"var(--text-primary)"}}>
             <IC d={icons.shield} size={13}/>Launch App
           </button>
         )}
@@ -326,7 +324,7 @@ function LandingPage({ onLaunch }: { onLaunch: () => void }) {
             <span className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{background:"#a78bfa"}}/>
             <span className="text-[0.62rem] font-medium uppercase tracking-[0.16em]" style={{color:"rgba(255,255,255,0.4)"}}>Stellar Protocol 26 · Zero-Knowledge · Testnet</span>
           </div>
-          <h1 className="text-[2.8rem] sm:text-[4rem] md:text-[5.4rem] font-black tracking-[-2px] sm:tracking-[-3px] md:tracking-[-4px] leading-[1] mb-6 max-w-[860px]" style={{color:"#ffffff"}}>
+          <h1 className="text-[2.8rem] sm:text-[4rem] md:text-[5.4rem] font-black tracking-[-2px] sm:tracking-[-3px] md:tracking-[-4px] leading-[1] mb-6 max-w-[860px] t-text-1">
             Private transfers,<br/>verified on-chain.
           </h1>
           <p className="text-[0.98rem] sm:text-[1.08rem] max-w-[480px] leading-[1.85] mb-10 font-light" style={{color:"var(--text-secondary)"}}>
@@ -346,13 +344,8 @@ function LandingPage({ onLaunch }: { onLaunch: () => void }) {
             ))}
           </div>
           <button onClick={onLaunch}
-            className="group inline-flex items-center gap-3 px-9 py-3.5 rounded-xl font-semibold text-[0.95rem] transition-all mb-5"
-            style={{
-              background:"#ffffff",
-              color:"#000000",
-            }}
-            onMouseEnter={e=>(e.currentTarget.style.background="#e5e5e5")}
-            onMouseLeave={e=>(e.currentTarget.style.background="#ffffff")}>
+            className="group inline-flex items-center gap-3 px-9 py-3.5 rounded-xl font-semibold text-[0.95rem] transition-all mb-5 t-text-1 border t-border-md hover:t-bg-raised"
+            style={{background:"var(--bg-raised)"}}>
             <IC d={icons.shield} size={16}/>Launch App
           </button>
           <p className="text-[0.7rem] tracking-wide" style={{color:"var(--text-ultrafaint)"}}>Freighter wallet · Stellar Testnet · Non-custodial</p>
