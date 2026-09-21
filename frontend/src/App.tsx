@@ -139,9 +139,6 @@ function TopNav({ address, light, setLight, connectWallet, disconnectWallet, bus
         </button>
       </div>
       <div className="flex items-center gap-1.5 sm:gap-2">
-        <button onClick={() => setLight(!light)} className="w-8 h-8 rounded-lg flex items-center justify-center t-bg-raised border t-border t-text-3 hover:text-purple-400 transition-all">
-          <IC d={light ? icons.moon : icons.sun} size={14}/>
-        </button>
         {view !== "landing" && <>
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border t-border t-bg-raised">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot"/>
@@ -1301,7 +1298,7 @@ export default function App() {
   const [log, setLog]           = useState<string[]>([]);
   const [busy, setBusy]         = useState(false);
   const [deposits, setDeposits] = useState(0);
-  const [light, setLight]       = useState(false);
+  const [light, setLight]       = useState(true);
   const [commitments, setCommitments] = useState<string[]>([]);
   const [poolIndex, setPoolIndex]     = useState(0);
   const [txHash, setTxHash]     = useState("");
