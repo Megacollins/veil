@@ -315,30 +315,14 @@ function LandingPage({ onLaunch }: { onLaunch: () => void }) {
 
       {/* ── HERO ── */}
       <section className="relative flex flex-col items-center justify-center text-center px-4 sm:px-6 pt-16 sm:pt-24 pb-20 sm:pb-28 overflow-hidden">
-        {/* Deep glow */}
-        <div className="absolute inset-0 pointer-events-none" style={{
-          background:"radial-gradient(ellipse 90% 70% at 50% -10%, rgba(109,40,217,0.28), transparent 65%)",
-        }}/>
-        {/* Ambient orbs */}
-        <div className="ambient-orb animate-orb" style={{width:500,height:500,top:"-15%",left:"-10%",background:"radial-gradient(circle,rgba(109,40,217,0.5),transparent 70%)"}}/>
-        <div className="ambient-orb animate-orb-slow" style={{width:400,height:400,top:"5%",right:"-8%",background:"radial-gradient(circle,rgba(67,56,202,0.4),transparent 70%)"}}/>
-        {/* Grid */}
-        <div className="landing-hero-grid absolute inset-0 pointer-events-none" style={{
-          backgroundImage:"linear-gradient(rgba(124,58,237,1) 1px,transparent 1px),linear-gradient(90deg,rgba(124,58,237,1) 1px,transparent 1px)",
-          backgroundSize:"72px 72px",
-          opacity:0.025,
-          maskImage:"radial-gradient(ellipse 80% 80% at 50% 0%,black 30%,transparent 100%)",
-        }}/>
+        {/* Subtle top separator line */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1px] h-24 pointer-events-none" style={{background:"linear-gradient(180deg,rgba(255,255,255,0.12),transparent)"}}/>
         <div className="relative z-10 flex flex-col items-center max-w-[1100px] w-full mx-auto">
           {/* Badge */}
-          <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border mb-8"
-            style={{
-              background:"linear-gradient(135deg,rgba(124,58,237,0.18),rgba(67,56,202,0.12))",
-              borderColor:"rgba(124,58,237,0.45)",
-              boxShadow:"0 0 24px rgba(124,58,237,0.2), inset 0 1px 0 rgba(255,255,255,0.06)"
-            }}>
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse-dot" style={{boxShadow:"0 0 6px rgba(167,139,250,0.8)"}}/>
-            <span className="text-[0.62rem] font-bold uppercase tracking-[0.16em]" style={{color:"var(--p300)"}}>Stellar Protocol 26 · Zero-Knowledge · Testnet</span>
+          <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border mb-8"
+            style={{borderColor:"rgba(255,255,255,0.1)", background:"rgba(255,255,255,0.03)"}}>
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{background:"#a78bfa"}}/>
+            <span className="text-[0.62rem] font-medium uppercase tracking-[0.16em]" style={{color:"rgba(255,255,255,0.4)"}}>Stellar Protocol 26 · Zero-Knowledge · Testnet</span>
           </div>
           <h1 className="text-[2.8rem] sm:text-[4rem] md:text-[5.4rem] font-black tracking-[-2px] sm:tracking-[-3px] md:tracking-[-4px] leading-[1] gradient-text mb-6 max-w-[860px]">
             Private transfers,<br/>verified on-chain.
@@ -352,27 +336,22 @@ function LandingPage({ onLaunch }: { onLaunch: () => void }) {
               { label:"BN254 Native", sub:"Protocol 26" },
               { label:"Poseidon2", sub:"ZK hash" },
             ].map(({ label, sub }) => (
-              <div key={label} className="flex items-center gap-2 px-3.5 py-2 rounded-xl border"
-                style={{
-                  background:"rgba(124,58,237,0.07)",
-                  borderColor:"rgba(124,58,237,0.22)",
-                  boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)"
-                }}>
-                <span className="w-1 h-1 rounded-full" style={{background:"var(--p400)"}}/>
-                <span className="text-[0.78rem] font-semibold" style={{color:"var(--p300)"}}>{label}</span>
-                <span className="text-[0.68rem]" style={{color:"rgba(167,139,250,0.45)"}}>{sub}</span>
+              <div key={label} className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg border"
+                style={{borderColor:"rgba(255,255,255,0.08)", background:"rgba(255,255,255,0.03)"}}>
+                <span className="text-[0.75rem] font-medium" style={{color:"rgba(255,255,255,0.6)"}}>{label}</span>
+                <span className="text-[0.68rem]" style={{color:"rgba(255,255,255,0.25)"}}>{sub}</span>
               </div>
             ))}
           </div>
           <button onClick={onLaunch}
-            className="group inline-flex items-center gap-3 px-10 py-4 rounded-2xl text-white font-bold text-[1rem] transition-all mb-5 relative overflow-hidden"
+            className="group inline-flex items-center gap-3 px-9 py-3.5 rounded-xl font-semibold text-[0.95rem] transition-all mb-5"
             style={{
-              background:"linear-gradient(135deg,#7c3aed,#5b21b6)",
-              boxShadow:"0 0 0 1px rgba(124,58,237,0.5), 0 8px 40px rgba(124,58,237,0.55), 0 2px 0 rgba(255,255,255,0.08) inset",
-            }}>
-            <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-              style={{background:"linear-gradient(135deg,#8b5cf6,#7c3aed)"}}/>
-            <span className="relative flex items-center gap-3"><IC d={icons.shield} size={18}/>Launch App</span>
+              background:"#ffffff",
+              color:"#000000",
+            }}
+            onMouseEnter={e=>(e.currentTarget.style.background="#e5e5e5")}
+            onMouseLeave={e=>(e.currentTarget.style.background="#ffffff")}>
+            <IC d={icons.shield} size={16}/>Launch App
           </button>
           <p className="text-[0.7rem] tracking-wide" style={{color:"var(--text-ultrafaint)"}}>Freighter wallet · Stellar Testnet · Non-custodial</p>
         </div>
