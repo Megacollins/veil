@@ -91,7 +91,7 @@ function Panel({ title, trailing, children }: { title:string; trailing?:React.Re
     <div className="rounded-2xl overflow-hidden relative" style={{
       background:"var(--bg-card)",
       border:"1px solid var(--border-main)",
-      boxShadow:"0 4px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)"
+      boxShadow:"0 4px 24px rgba(0,0,0,0.08), inset 0 1px 0 var(--bg-raised)"
     }}>
       {/* top accent line */}
       <div className="absolute top-0 left-0 right-0 h-[1px]"
@@ -180,11 +180,11 @@ function TopNav({ address, light, setLight, connectWallet, disconnectWallet, bus
                   style={{
                     background:"rgba(13,11,22,0.97)",
                     borderColor:"rgba(124,58,237,0.25)",
-                    boxShadow:"0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(124,58,237,0.1), inset 0 1px 0 rgba(255,255,255,0.04)",
+                    boxShadow:"0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(124,58,237,0.1), inset 0 1px 0 var(--bg-raised)",
                     backdropFilter:"blur(20px)",
                   }}>
                   {/* Account info header */}
-                  <div className="px-4 py-3.5 border-b" style={{borderColor:"rgba(255,255,255,0.06)"}}>
+                  <div className="px-4 py-3.5 border-b" style={{borderColor:"var(--border-subtle)"}}>
                     <div className="flex items-center gap-2.5 mb-1">
                       <span className="w-7 h-7 rounded-full flex items-center justify-center text-[0.65rem] font-bold text-white shrink-0"
                         style={{background:"linear-gradient(135deg,#7c3aed,#3730a3)"}}>
@@ -200,7 +200,7 @@ function TopNav({ address, light, setLight, connectWallet, disconnectWallet, bus
                   <button
                     onClick={() => { navigator.clipboard.writeText(address); setShowMenu(false); }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-[0.78rem] t-text-3 hover:text-purple-400 transition-colors group"
-                    style={{borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+                    style={{borderBottom:"1px solid var(--border-subtle)"}}>
                     <IC d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" size={14}/>
                     Copy address
                   </button>
@@ -208,7 +208,7 @@ function TopNav({ address, light, setLight, connectWallet, disconnectWallet, bus
                   <a href={`https://stellar.expert/explorer/testnet/account/${address}`} target="_blank" rel="noreferrer"
                     onClick={() => setShowMenu(false)}
                     className="w-full flex items-center gap-3 px-4 py-3 text-[0.78rem] t-text-3 hover:text-purple-400 transition-colors"
-                    style={{borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+                    style={{borderBottom:"1px solid var(--border-subtle)"}}>
                     <IC d={icons.link} size={14}/>
                     View on Explorer
                   </a>
@@ -271,7 +271,7 @@ function Sidebar({ view, setView, open, onClose }: { view: View; setView:(v:View
               background:"linear-gradient(135deg,rgba(124,58,237,0.18),rgba(67,56,202,0.08))",
               border:"1px solid rgba(124,58,237,0.3)",
               color:"var(--p300)",
-              boxShadow:"inset 0 1px 0 rgba(255,255,255,0.05), 0 0 12px rgba(124,58,237,0.08)"
+              boxShadow:"inset 0 1px 0 var(--border-subtle), 0 0 12px rgba(124,58,237,0.08)"
             } : {
               border:"1px solid transparent",
               color:"var(--text-muted)"
@@ -374,9 +374,9 @@ function LandingPage({ onLaunch }: { onLaunch: () => void }) {
             ].map(({ step, accent, glow, icon, title, desc }) => (
               <div key={step} className="relative flex flex-col p-7 rounded-2xl overflow-hidden group hover:translate-y-[-2px] transition-transform duration-300"
                 style={{
-                  background:`linear-gradient(160deg,rgba(255,255,255,0.025) 0%,var(--bg-card) 100%)`,
+                  background:`linear-gradient(160deg,var(--bg-raised) 0%,var(--bg-card) 100%)`,
                   border:`1px solid ${accent}22`,
-                  boxShadow:`0 0 0 1px ${accent}0a, 0 4px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)`
+                  boxShadow:`0 0 0 1px ${accent}0a, 0 4px 32px rgba(0,0,0,0.08), inset 0 1px 0 var(--border-subtle)`
                 }}>
                 {/* Top accent line */}
                 <div className="absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl"
@@ -421,7 +421,7 @@ function LandingPage({ onLaunch }: { onLaunch: () => void }) {
                 style={{
                   background:`linear-gradient(135deg,${color}07 0%,transparent 100%)`,
                   border:`1px solid ${color}18`,
-                  boxShadow:`inset 0 1px 0 rgba(255,255,255,0.03)`
+                  boxShadow:`inset 0 1px 0 var(--bg-raised)`
                 }}>
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 relative"
                   style={{background:`${color}14`,border:`1px solid ${color}28`}}>
@@ -494,7 +494,7 @@ function LandingPage({ onLaunch }: { onLaunch: () => void }) {
                 style={{
                   background:`linear-gradient(160deg,${color}06 0%,var(--bg-card) 100%)`,
                   border:`1px solid ${color}1a`,
-                  boxShadow:`inset 0 1px 0 rgba(255,255,255,0.04), 0 4px 24px rgba(0,0,0,0.3)`
+                  boxShadow:`inset 0 1px 0 var(--bg-raised), 0 4px 24px rgba(0,0,0,0.08)`
                 }}>
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-5 relative"
                   style={{background:`${color}14`,border:`1px solid ${color}30`}}>
@@ -860,7 +860,7 @@ function SendPage({ step, address, note, noteJson, setNoteJson, recipient, setRe
             style={{
               background:"var(--bg-card)",
               border:"1px solid var(--border-main)",
-              boxShadow:"0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)"
+              boxShadow:"0 4px 20px rgba(0,0,0,0.08), inset 0 1px 0 var(--bg-raised)"
             }}>
             <div className="absolute top-0 left-0 right-0 h-[1px]"
               style={{background:"linear-gradient(90deg,transparent,rgba(124,58,237,0.3),transparent)"}}/>
@@ -987,7 +987,7 @@ function PoolPage({ deposits, commitments }: { deposits: number; commitments: st
           <div key={label} className="rounded-2xl p-5 relative overflow-hidden" style={{
             background:"var(--bg-card)",
             border:"1px solid var(--border-main)",
-            boxShadow:"0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)"
+            boxShadow:"0 4px 20px rgba(0,0,0,0.08), inset 0 1px 0 var(--bg-raised)"
           }}>
             <div className="absolute top-0 left-0 right-0 h-[1px]" style={{background:"linear-gradient(90deg,transparent,rgba(124,58,237,0.3),transparent)"}}/>
             <p className="text-[0.6rem] font-bold uppercase tracking-[0.12em] mb-2" style={{color:"var(--text-faint)"}}>{label}</p>
@@ -1047,7 +1047,7 @@ function LedgerPage({ note, proof, publicInputs }: { note: Note|null; proof: str
           <div key={label} className="rounded-2xl p-5 relative overflow-hidden" style={{
             background:bg,
             border:`1px solid ${border}`,
-            boxShadow:"0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)"
+            boxShadow:"0 4px 20px rgba(0,0,0,0.08), inset 0 1px 0 var(--bg-raised)"
           }}>
             <div className="absolute top-0 left-0 right-0 h-[1px]" style={{background:`linear-gradient(90deg,transparent,${border},transparent)`}}/>
             <p className={`text-[0.6rem] font-bold uppercase tracking-[0.12em] mb-2 ${color}`}>{label}</p>
@@ -1162,7 +1162,7 @@ function FAQPage() {
         <div className="flex items-center gap-3">
           {["UltraHonk Proofs","BN254 Curve","Stellar Protocol 26"].map(t => (
             <span key={t} className="text-[0.68rem] font-semibold t-text-5 px-2.5 py-1 rounded-lg border t-border"
-              style={{background:"rgba(255,255,255,0.03)"}}>{t}</span>
+              style={{background:"var(--bg-raised)"}}>{t}</span>
           ))}
         </div>
       </div>
@@ -1182,19 +1182,19 @@ function FAQPage() {
                 background: isOpen
                   ? "linear-gradient(135deg,rgba(124,58,237,0.10) 0%,rgba(124,58,237,0.04) 100%)"
                   : isHov
-                    ? "rgba(255,255,255,0.04)"
-                    : "rgba(255,255,255,0.025)",
+                    ? "var(--bg-raised)"
+                    : "var(--bg-raised)",
                 border: isOpen
                   ? "1px solid rgba(124,58,237,0.45)"
                   : isHov
                     ? "1px solid rgba(124,58,237,0.28)"
-                    : "1px solid rgba(255,255,255,0.07)",
+                    : "1px solid var(--border-subtle)",
                 /* Premium depth: two-layer shadow */
                 boxShadow: isOpen
-                  ? "0 0 0 1px rgba(124,58,237,0.12), 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05)"
+                  ? "0 0 0 1px rgba(124,58,237,0.12), 0 8px 32px rgba(0,0,0,0.08), inset 0 1px 0 var(--border-subtle)"
                   : isHov
-                    ? "0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)"
-                    : "0 2px 8px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.03)",
+                    ? "0 4px 20px rgba(0,0,0,0.08), inset 0 1px 0 var(--bg-raised)"
+                    : "0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 var(--bg-raised)",
                 borderRadius: "18px",
                 cursor: "pointer",
                 transition: "all 0.2s cubic-bezier(0.4,0,0.2,1)",
@@ -1226,7 +1226,7 @@ function FAQPage() {
                 <span style={{
                   display:"flex", alignItems:"center", justifyContent:"center",
                   width:28, height:28, borderRadius:"50%", flexShrink:0,
-                  background: isOpen ? "rgba(124,58,237,0.2)" : "rgba(255,255,255,0.05)",
+                  background: isOpen ? "rgba(124,58,237,0.2)" : "var(--border-subtle)",
                   border: isOpen ? "1px solid rgba(124,58,237,0.4)" : "1px solid rgba(255,255,255,0.08)",
                   color: isOpen ? "#a78bfa" : "#6b7280",
                   transition:"all 0.2s ease",
@@ -1248,7 +1248,7 @@ function FAQPage() {
                   height:"1px", margin:"0 24px",
                   background: isOpen
                     ? "linear-gradient(90deg,rgba(124,58,237,0.5),rgba(124,58,237,0.1),transparent)"
-                    : "rgba(255,255,255,0.06)",
+                    : "var(--border-subtle)",
                 }}/>
                 <p style={{
                   padding:"18px 24px 22px",
@@ -1263,7 +1263,7 @@ function FAQPage() {
 
       {/* ── Footer note ── */}
       <div className="mt-8 flex items-center gap-2.5 px-5 py-3.5 rounded-2xl border"
-        style={{background:"rgba(255,255,255,0.015)",borderColor:"rgba(255,255,255,0.06)"}}>
+        style={{background:"var(--bg-raised)",borderColor:"var(--border-subtle)"}}>
         <IC d={icons.shield} size={14}/>
         <p className="text-[0.72rem] t-text-5 leading-relaxed">
           Veil is non-custodial. Your keys, your note, your funds — no recovery possible if lost.
